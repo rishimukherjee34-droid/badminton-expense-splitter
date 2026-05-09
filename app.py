@@ -3,11 +3,14 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# ---------- FILE SETUP ----------
+# =========================================================
+# FILE SETUP
+# =========================================================
+
 HISTORY_FILE = "history.csv"
 SHUTTLE_FILE = "shuttle_fund.csv"
 
-# ---------- CREATE HISTORY FILE ----------
+# ---------- CREATE MATCH HISTORY FILE ----------
 if not os.path.exists(HISTORY_FILE):
 
     history_df = pd.DataFrame(columns=[
@@ -20,7 +23,7 @@ if not os.path.exists(HISTORY_FILE):
 
     history_df.to_csv(HISTORY_FILE, index=False)
 
-# ---------- CREATE SHUTTLE FILE ----------
+# ---------- CREATE SHUTTLE FUND FILE ----------
 if not os.path.exists(SHUTTLE_FILE):
 
     shuttle_df = pd.DataFrame(columns=[
@@ -33,10 +36,16 @@ if not os.path.exists(SHUTTLE_FILE):
 
     shuttle_df.to_csv(SHUTTLE_FILE, index=False)
 
-# ---------- APP TITLE ----------
+# =========================================================
+# APP TITLE
+# =========================================================
+
 st.title("🏸 Badminton Group Manager")
 
-# ---------- TABS ----------
+# =========================================================
+# TABS
+# =========================================================
+
 tab1, tab2 = st.tabs([
     "🏸 Match Splitter",
     "🪶 Shuttle Fund Tracker"
@@ -45,7 +54,10 @@ tab1, tab2 = st.tabs([
 # =========================================================
 # TAB 1 — MATCH SPLITTER
 # =========================================================
+
 with tab1:
+
+    st.header("🏸 Match Expense Splitter")
 
     # ---------- INPUTS ----------
     total_cost = st.number_input(
@@ -68,7 +80,7 @@ with tab1:
     for i in range(int(num_players)):
 
         name = st.text_input(
-            f"Player {i+1} name",
+            f"Player {i+1} Name",
             key=f"name{i}"
         )
 
@@ -103,16 +115,22 @@ with tab1:
 
         else:
 
-            cost_per_hour = total_cost / total_player_hours
+            # ---------- COST CALCULATION ----------
+            cost_per_hour = (
+                total_cost / total_player_hours
+            )
 
             balances = {}
 
             for person in players:
 
-                fair_share = players[person] * cost_per_hour
+                fair_share = (
+                    players[person] * cost_per_hour
+                )
 
                 balances[person] = round(
-                    payments.get(person, 0) - fair_share,
+                    payments.get(person, 0)
+                    - fair_share,
                     2
                 )
 
@@ -139,7 +157,7 @@ with tab1:
                         f"✔️ {person} is settled"
                     )
 
-            # ---------- SAVE HISTORY ----------
+            # ---------- SAVE MATCH HISTORY ----------
             history_rows = []
 
             current_date = datetime.now().strftime(
@@ -156,9 +174,13 @@ with tab1:
                     "Balance": balances[person]
                 })
 
-            new_data = pd.DataFrame(history_rows)
+            new_data = pd.DataFrame(
+                history_rows
+            )
 
-            existing_data = pd.read_csv(HISTORY_FILE)
+            existing_data = pd.read_csv(
+                HISTORY_FILE
+            )
 
             updated_data = pd.concat(
                 [existing_data, new_data],
@@ -187,7 +209,10 @@ with tab1:
 
             i, j = 0, 0
 
-            while i < len(debtors) and j < len(creditors):
+            while (
+                i < len(debtors)
+                and j < len(creditors)
+            ):
 
                 d_name, d_amt = debtors[i]
                 c_name, c_amt = creditors[j]
@@ -201,8 +226,15 @@ with tab1:
                 d_amt -= pay
                 c_amt -= pay
 
-                debtors[i] = (d_name, d_amt)
-                creditors[j] = (c_name, c_amt)
+                debtors[i] = (
+                    d_name,
+                    d_amt
+                )
+
+                creditors[j] = (
+                    c_name,
+                    c_amt
+                )
 
                 if d_amt <= 0.01:
                     i += 1
@@ -213,7 +245,9 @@ with tab1:
     # ---------- MATCH HISTORY ----------
     st.subheader("📜 Match History")
 
-    history_df = pd.read_csv(HISTORY_FILE)
+    history_df = pd.read_csv(
+        HISTORY_FILE
+    )
 
     if len(history_df) > 0:
 
@@ -221,18 +255,25 @@ with tab1:
 
     else:
 
-        st.info("No history available yet.")
+        st.info(
+            "No match history available yet."
+        )
 
 # =========================================================
 # TAB 2 — SHUTTLE FUND TRACKER
 # =========================================================
+
 with tab2:
 
     st.header("🪶 Shuttle Fund Tracker")
 
+    # ---------- TRANSACTION INPUT ----------
     transaction_type = st.selectbox(
         "Transaction Type",
-        ["Fund Collection", "Expense"]
+        [
+            "Fund Collection",
+            "Expense"
+        ]
     )
 
     person = st.text_input(
@@ -248,10 +289,11 @@ with tab2:
         "Notes"
     )
 
+    # ---------- ADD TRANSACTION ----------
     if st.button("Add Transaction"):
 
         current_date = datetime.now().strftime(
-            "%Y-%m-%d %H:%M"
+            "%d-%m-%Y"
         )
 
         # Expense becomes negative
@@ -266,7 +308,9 @@ with tab2:
             "Notes": notes
         }])
 
-        existing = pd.read_csv(SHUTTLE_FILE)
+        existing = pd.read_csv(
+            SHUTTLE_FILE
+        )
 
         updated = pd.concat(
             [existing, new_entry],
@@ -282,7 +326,10 @@ with tab2:
             "Transaction Added Successfully ✅"
         )
 
-    # ---------- SHUTTLE HISTORY ----------
+    # =====================================================
+    # SHUTTLE FUND HISTORY
+    # =====================================================
+
     st.subheader("📜 Shuttle Fund History")
 
     shuttle_history = pd.read_csv(
@@ -291,6 +338,7 @@ with tab2:
 
     if len(shuttle_history) > 0:
 
+        # ---------- CURRENT BALANCE ----------
         current_balance = shuttle_history[
             "Amount"
         ].sum()
@@ -300,7 +348,70 @@ with tab2:
             f"₹{current_balance:.2f}"
         )
 
-        st.dataframe(shuttle_history)
+        # ---------- GROUP HISTORY ----------
+        grouped_dates = shuttle_history.groupby(
+            "Date"
+        )
+
+        for date, group in grouped_dates:
+
+            st.markdown(
+                f"## 📅 {date}"
+            )
+
+            fund_entries = group[
+                group["Amount"] > 0
+            ]
+
+            expense_entries = group[
+                group["Amount"] < 0
+            ]
+
+            # ---------- FUNDS ----------
+            if len(fund_entries) > 0:
+
+                st.markdown(
+                    "### ✅ Funds Received"
+                )
+
+                total_added = 0
+
+                for _, row in fund_entries.iterrows():
+
+                    st.write(
+                        f"• {row['Person']} → ₹{abs(row['Amount']):.2f}"
+                    )
+
+                    total_added += row["Amount"]
+
+                st.write(
+                    f"**Total Added: ₹{total_added:.2f}**"
+                )
+
+            # ---------- EXPENSES ----------
+            if len(expense_entries) > 0:
+
+                st.markdown(
+                    "### 💸 Expenses"
+                )
+
+                total_expense = 0
+
+                for _, row in expense_entries.iterrows():
+
+                    st.write(
+                        f"• {row['Person']} → ₹{abs(row['Amount']):.2f}"
+                    )
+
+                    total_expense += abs(
+                        row["Amount"]
+                    )
+
+                st.write(
+                    f"**Total Expense: ₹{total_expense:.2f}**"
+                )
+
+            st.markdown("---")
 
     else:
 
