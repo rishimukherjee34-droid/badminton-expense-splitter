@@ -3,175 +3,307 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# ---------- HISTORY FILE SETUP ----------
+# ---------- FILE SETUP ----------
 HISTORY_FILE = "history.csv"
+SHUTTLE_FILE = "shuttle_fund.csv"
 
+# ---------- CREATE HISTORY FILE ----------
 if not os.path.exists(HISTORY_FILE):
-    df = pd.DataFrame(columns=[
+
+    history_df = pd.DataFrame(columns=[
         "Date",
         "Player",
         "Hours Played",
         "Amount Paid",
         "Balance"
     ])
-    df.to_csv(HISTORY_FILE, index=False)
+
+    history_df.to_csv(HISTORY_FILE, index=False)
+
+# ---------- CREATE SHUTTLE FILE ----------
+if not os.path.exists(SHUTTLE_FILE):
+
+    shuttle_df = pd.DataFrame(columns=[
+        "Date",
+        "Type",
+        "Person",
+        "Amount",
+        "Notes"
+    ])
+
+    shuttle_df.to_csv(SHUTTLE_FILE, index=False)
 
 # ---------- APP TITLE ----------
-st.title("🏸 Badminton Expense Splitter")
+st.title("🏸 Badminton Group Manager")
 
-# ---------- INPUTS ----------
-total_cost = st.number_input(
-    "Enter total court cost",
-    min_value=0.0
-)
+# ---------- TABS ----------
+tab1, tab2 = st.tabs([
+    "🏸 Match Splitter",
+    "🪶 Shuttle Fund Tracker"
+])
 
-num_players = st.number_input(
-    "Enter number of players",
-    min_value=1,
-    step=1
-)
+# =========================================================
+# TAB 1 — MATCH SPLITTER
+# =========================================================
+with tab1:
 
-players = {}
-payments = {}
-
-# ---------- HOURS INPUT ----------
-st.subheader("Enter hours played")
-
-for i in range(int(num_players)):
-
-    name = st.text_input(
-        f"Player {i+1} name",
-        key=f"name{i}"
+    # ---------- INPUTS ----------
+    total_cost = st.number_input(
+        "Enter total court cost",
+        min_value=0.0
     )
 
-    hours = st.number_input(
-        f"Hours played by {name}",
-        min_value=0.0,
-        key=f"hours{i}"
+    num_players = st.number_input(
+        "Enter number of players",
+        min_value=1,
+        step=1
     )
 
-    if name:
-        players[name] = hours
+    players = {}
+    payments = {}
 
-# ---------- PAYMENT INPUT ----------
-st.subheader("Enter payments")
+    # ---------- HOURS INPUT ----------
+    st.subheader("Enter hours played")
 
-for name in players:
-    payments[name] = st.number_input(
-        f"Amount paid by {name}",
-        min_value=0.0,
-        key=f"pay_{name}"
-    )
+    for i in range(int(num_players)):
 
-# ---------- CALCULATE BUTTON ----------
-if st.button("Calculate Split"):
+        name = st.text_input(
+            f"Player {i+1} name",
+            key=f"name{i}"
+        )
 
-    total_player_hours = sum(players.values())
+        hours = st.number_input(
+            f"Hours played by {name}",
+            min_value=0.0,
+            key=f"hours{i}"
+        )
 
-    if total_player_hours == 0:
-        st.error("Total player hours cannot be zero.")
+        if name:
+            players[name] = hours
+
+    # ---------- PAYMENTS ----------
+    st.subheader("Enter payments")
+
+    for name in players:
+
+        payments[name] = st.number_input(
+            f"Amount paid by {name}",
+            min_value=0.0,
+            key=f"pay_{name}"
+        )
+
+    # ---------- CALCULATE ----------
+    if st.button("Calculate Split"):
+
+        total_player_hours = sum(players.values())
+
+        if total_player_hours == 0:
+
+            st.error("Total player hours cannot be zero.")
+
+        else:
+
+            cost_per_hour = total_cost / total_player_hours
+
+            balances = {}
+
+            for person in players:
+
+                fair_share = players[person] * cost_per_hour
+
+                balances[person] = round(
+                    payments.get(person, 0) - fair_share,
+                    2
+                )
+
+            # ---------- BALANCES ----------
+            st.subheader("Balances")
+
+            for person, balance in balances.items():
+
+                if balance > 0:
+
+                    st.write(
+                        f"✅ {person} should receive ₹{balance:.2f}"
+                    )
+
+                elif balance < 0:
+
+                    st.write(
+                        f"❌ {person} should pay ₹{-balance:.2f}"
+                    )
+
+                else:
+
+                    st.write(
+                        f"✔️ {person} is settled"
+                    )
+
+            # ---------- SAVE HISTORY ----------
+            history_rows = []
+
+            current_date = datetime.now().strftime(
+                "%Y-%m-%d %H:%M"
+            )
+
+            for person in players:
+
+                history_rows.append({
+                    "Date": current_date,
+                    "Player": person,
+                    "Hours Played": players[person],
+                    "Amount Paid": payments[person],
+                    "Balance": balances[person]
+                })
+
+            new_data = pd.DataFrame(history_rows)
+
+            existing_data = pd.read_csv(HISTORY_FILE)
+
+            updated_data = pd.concat(
+                [existing_data, new_data],
+                ignore_index=True
+            )
+
+            updated_data.to_csv(
+                HISTORY_FILE,
+                index=False
+            )
+
+            # ---------- SETTLEMENT ----------
+            st.subheader("Settlement")
+
+            creditors = [
+                (p, b)
+                for p, b in balances.items()
+                if b > 0
+            ]
+
+            debtors = [
+                (p, -b)
+                for p, b in balances.items()
+                if b < 0
+            ]
+
+            i, j = 0, 0
+
+            while i < len(debtors) and j < len(creditors):
+
+                d_name, d_amt = debtors[i]
+                c_name, c_amt = creditors[j]
+
+                pay = min(d_amt, c_amt)
+
+                st.write(
+                    f"👉 {d_name} pays ₹{pay:.2f} to {c_name}"
+                )
+
+                d_amt -= pay
+                c_amt -= pay
+
+                debtors[i] = (d_name, d_amt)
+                creditors[j] = (c_name, c_amt)
+
+                if d_amt <= 0.01:
+                    i += 1
+
+                if c_amt <= 0.01:
+                    j += 1
+
+    # ---------- MATCH HISTORY ----------
+    st.subheader("📜 Match History")
+
+    history_df = pd.read_csv(HISTORY_FILE)
+
+    if len(history_df) > 0:
+
+        st.dataframe(history_df)
 
     else:
 
-        # ---------- COST CALCULATION ----------
-        cost_per_hour = total_cost / total_player_hours
+        st.info("No history available yet.")
 
-        balances = {}
+# =========================================================
+# TAB 2 — SHUTTLE FUND TRACKER
+# =========================================================
+with tab2:
 
-        for person in players:
+    st.header("🪶 Shuttle Fund Tracker")
 
-            fair_share = players[person] * cost_per_hour
+    transaction_type = st.selectbox(
+        "Transaction Type",
+        ["Fund Collection", "Expense"]
+    )
 
-            balances[person] = round(
-                payments.get(person, 0) - fair_share,
-                2
-            )
+    person = st.text_input(
+        "Person / Vendor Name"
+    )
 
-        # ---------- BALANCES ----------
-        st.subheader("Balances")
+    amount = st.number_input(
+        "Amount",
+        min_value=0.0
+    )
 
-        for person, balance in balances.items():
+    notes = st.text_input(
+        "Notes"
+    )
 
-            if balance > 0:
-                st.write(f"{person} should receive ₹{balance:.2f}")
+    if st.button("Add Transaction"):
 
-            elif balance < 0:
-                st.write(f"{person} should pay ₹{-balance:.2f}")
+        current_date = datetime.now().strftime(
+            "%Y-%m-%d %H:%M"
+        )
 
-            else:
-                st.write(f"{person} is settled")
+        # Expense becomes negative
+        if transaction_type == "Expense":
+            amount = -amount
 
-        # ---------- SAVE HISTORY ----------
-        history_rows = []
+        new_entry = pd.DataFrame([{
+            "Date": current_date,
+            "Type": transaction_type,
+            "Person": person,
+            "Amount": amount,
+            "Notes": notes
+        }])
 
-        current_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        existing = pd.read_csv(SHUTTLE_FILE)
 
-        for person in players:
-
-            history_rows.append({
-                "Date": current_date,
-                "Player": person,
-                "Hours Played": players[person],
-                "Amount Paid": payments[person],
-                "Balance": balances[person]
-            })
-
-        new_data = pd.DataFrame(history_rows)
-
-        existing_data = pd.read_csv(HISTORY_FILE)
-
-        updated_data = pd.concat(
-            [existing_data, new_data],
+        updated = pd.concat(
+            [existing, new_entry],
             ignore_index=True
         )
 
-        updated_data.to_csv(HISTORY_FILE, index=False)
+        updated.to_csv(
+            SHUTTLE_FILE,
+            index=False
+        )
 
-        # ---------- SETTLEMENT ----------
-        st.subheader("Settlement")
+        st.success(
+            "Transaction Added Successfully ✅"
+        )
 
-        creditors = [
-            (p, b)
-            for p, b in balances.items()
-            if b > 0
-        ]
+    # ---------- SHUTTLE HISTORY ----------
+    st.subheader("📜 Shuttle Fund History")
 
-        debtors = [
-            (p, -b)
-            for p, b in balances.items()
-            if b < 0
-        ]
+    shuttle_history = pd.read_csv(
+        SHUTTLE_FILE
+    )
 
-        i, j = 0, 0
+    if len(shuttle_history) > 0:
 
-        while i < len(debtors) and j < len(creditors):
+        current_balance = shuttle_history[
+            "Amount"
+        ].sum()
 
-            d_name, d_amt = debtors[i]
-            c_name, c_amt = creditors[j]
+        st.metric(
+            "Current Shuttle Fund Balance",
+            f"₹{current_balance:.2f}"
+        )
 
-            pay = min(d_amt, c_amt)
+        st.dataframe(shuttle_history)
 
-            st.write(f"👉 {d_name} pays ₹{pay:.2f} to {c_name}")
+    else:
 
-            d_amt -= pay
-            c_amt -= pay
-
-            debtors[i] = (d_name, d_amt)
-            creditors[j] = (c_name, c_amt)
-
-            if d_amt <= 0.01:
-                i += 1
-
-            if c_amt <= 0.01:
-                j += 1
-
-# ---------- MATCH HISTORY ----------
-st.subheader("📜 Match History")
-
-history_df = pd.read_csv(HISTORY_FILE)
-
-if len(history_df) > 0:
-    st.dataframe(history_df)
-
-else:
-    st.info("No history available yet.")
+        st.info(
+            "No shuttle fund transactions yet."
+        )
